@@ -1095,6 +1095,32 @@ test('pk multistep #3', async () => {
 	expect(pst2).toStrictEqual(expectedSql2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6534
+test('create_fk check skipped when the referenced table is not exported from the schema', async () => {
+	// `accounts` is created and migrated elsewhere, so it is not part of the schema here
+	const accounts = mysqlTable('accounts', {
+		id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+	});
+
+	const from = {
+		wallets: mysqlTable('wallets', {
+			id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+		}),
+	};
+
+	const to = {
+		wallets: mysqlTable('wallets', {
+			id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+			owner: bigint('owner', { mode: 'number' }).references(() => accounts.id),
+		}),
+	};
+
+	const { sqlStatements, suggestion } = await diff(from, to, []);
+
+	expect(suggestion.errors).toStrictEqual([]);
+	expect(sqlStatements.some((s) => s.includes('FOREIGN KEY'))).toBe(true);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3471
 test('drop column with pk and add pk to another column #1', async () => {
 	const schema1 = {
