@@ -29,6 +29,11 @@ export const suggestions = (
 		if (statement.type === 'create_fk' && statement.cause !== 'alter_pk') {
 			const { columnsTo, table, tableTo, columns } = statement.fk;
 
+			// A referenced table that is not exported from the schema is not part of the
+			// DDL, so there is nothing to check uniqueness against - skip it, the same
+			// way a reference inline in CREATE TABLE is not checked.
+			if (!ddl2.tables.one({ name: tableTo })) continue;
+
 			const indexes = ddl2.indexes.list({ isUnique: true, table: tableTo });
 			const pk = ddl2.pks.one({ table: tableTo });
 
