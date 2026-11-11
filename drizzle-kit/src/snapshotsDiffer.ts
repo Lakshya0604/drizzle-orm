@@ -1991,6 +1991,11 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedCompositePKs);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
+	// Unique constraints added to existing tables must be created before any
+	// foreign keys that may reference them (e.g. a new child table referencing
+	// a newly added composite unique constraint on an existing parent).
+	jsonStatements.push(...jsonAddedUniqueConstraints);
+
 	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
 
@@ -2000,7 +2005,6 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);

@@ -955,3 +955,49 @@ test('optional db aliases (camel case)', async () => {
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
+
+test('add unique constraint before foreign keys referencing it', async () => {
+	const from = {
+		parent: pgTable('parent', {
+			id: serial('id').primaryKey(),
+			a: integer('a'),
+		}),
+		child: pgTable('child', {
+			id: serial('id').primaryKey(),
+			x: integer('x'),
+			y: integer('y'),
+		}),
+	};
+
+	const parentTo = pgTable('parent', {
+		id: serial('id').primaryKey(),
+		a: integer('a'),
+		b: integer('b'),
+	}, (t) => ({
+		uq: unique('uq_parent_a_b').on(t.a, t.b),
+	}));
+	const childTo = pgTable('child', {
+		id: serial('id').primaryKey(),
+		x: integer('x'),
+		y: integer('y'),
+	}, (t) => ({
+		fk: foreignKey({ columns: [t.x, t.y], foreignColumns: [parentTo.a, parentTo.b] }),
+	}));
+	const newChildTo = pgTable('new_child', {
+		id: serial('id').primaryKey(),
+		x: integer('x'),
+		y: integer('y'),
+	}, (t) => ({
+		fk: foreignKey({ columns: [t.x, t.y], foreignColumns: [parentTo.a, parentTo.b] }),
+	}));
+
+	const to = { parent: parentTo, child: childTo, newChild: newChildTo };
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	const uniqueIdx = sqlStatements.findIndex((s) => s.includes('ADD CONSTRAINT "uq_parent_a_b" UNIQUE'));
+	expect(uniqueIdx).toBeGreaterThan(-1);
+	// both the altered-table FK and the created-table FK must come after the unique constraint
+	expect(sqlStatements.findIndex((s) => s.includes('"child_x_y_parent_a_b_fk"'))).toBeGreaterThan(uniqueIdx);
+	expect(sqlStatements.findIndex((s) => s.includes('"new_child_x_y_parent_a_b_fk"'))).toBeGreaterThan(uniqueIdx);
+});
